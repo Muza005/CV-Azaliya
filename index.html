@@ -66,7 +66,12 @@ body[data-p=home] header{background:var(--pink)}
 .foot2.fx.show{transform:none}.foot2.fx .foot{margin-top:0}
 /* GALLERY */
 #work{position:relative;height:100vh;overflow:hidden}
-#cv{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;perspective:900px;--m0:104px;--m1:220px;-webkit-mask-image:linear-gradient(to bottom,#0000 0,#0000 var(--m0),#000 var(--m1),#000 calc(100% - 80px),#0000 100%);mask-image:linear-gradient(to bottom,#0000 0,#0000 var(--m0),#000 var(--m1),#000 calc(100% - 80px),#0000 100%)}
+#cv{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;perspective:900px}
+/* gallery view: cards pass freely under a see-through header instead of being cut at its edge */
+body[data-p=work][data-v=g] header{background:transparent;pointer-events:none}body[data-p=work][data-v=g] header a{pointer-events:auto}
+/* while dragging: no hover zoom (it forced the big images to re-rasterize mid-drag, leaving blank strips) */
+#cv.drag{cursor:grabbing}#cv.drag .card{cursor:grabbing}#cv.drag .card .in,#cv.drag .card:hover .in{transition:none;transform:scale(1.35)}
+.card img{-webkit-user-drag:none;user-drag:none;pointer-events:none}
 body[data-p=work]{overflow:hidden}#cv:active{cursor:grabbing}
 #pl{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d}
 .card{position:absolute;left:0;top:0;cursor:pointer;user-select:none;will-change:transform,opacity}.card .in{transition:transform .3s;transform:scale(1.35)}.card:hover .in{transform:scale(1.43)}
@@ -148,7 +153,7 @@ body[data-p=work]{overflow:hidden}#cv:active{cursor:grabbing}
  .foot2{padding:36px 16px calc(28px + env(safe-area-inset-bottom,0px))}
  .foot{margin-top:0;font-size:13px;gap:12px}
  /* gallery + index */
- #cv{inset:0;--m0:62px;--m1:150px}.card .in{transform:scale(1.1)}.card:hover .in{transform:scale(1.15)}
+ #cv{inset:0}
  #ix{padding:96px 16px 150px}#ix.on{gap:12px}
  .cell{height:auto!important;padding:20px 18px 12px}
  .cell .art{min-height:180px}
@@ -240,26 +245,30 @@ const ORD=[W[4],W[9],...W.filter((w,i)=>i!=4&&i!=9)],A3=[.8191725,.6710436,.5497
 const PH=ORD.filter(w=>w.k=='ph');/* real works appear once; extra slots are filled with placeholders only */
 for(let m=0;m<N;m++)items.push({w:m<ORD.length?ORD[m]:PH[(m-ORD.length)%PH.length],bx:(fr(.5+A3[0]*(m+SD+1))-.5)*PX,by:(fr(.5+A3[1]*(m+SD+1))-.5)*PY,bz:fr(.5+A3[2]*(m+SD+1))*R-ZO});
 Object.assign(items[0],{bx:-430,by:-40,bz:-60});Object.assign(items[1],{bx:400,by:110,bz:-260});
+if(innerWidth<=820){Object.assign(items[0],{bx:-70,by:-250,bz:-40});Object.assign(items[1],{bx:90,by:250,bz:-200})}
 pl.innerHTML=items.map(it=>`<div class="card" data-id="${it.w.id}" role="link" tabindex="0" aria-label="${it.w.t}"><div class="in">${art(it.w,`width:${it.w.w}px;height:${it.w.h}px`)}<h4 class="${it.w.k=='ph'?'':'i'}">${it.w.t}</h4><small>${META}</small></div></div>`).join('');
 const els=[...pl.children];let cx=0,cy=0,cz=0,tx=0,ty=0,tz=0,gx=.5,gy=.5,dr=null,mv=0;
-cv.addEventListener('pointerdown',e=>{dr=[e.clientX+tx,e.clientY+ty];mv=0});
+cv.addEventListener('pointerdown',e=>{if(e.button)return;dr=[e.clientX+tx,e.clientY+ty];mv=0;cv.classList.add('drag')});
+cv.addEventListener('dragstart',e=>e.preventDefault());
 addEventListener('pointermove',e=>{gx=e.clientX/innerWidth;gy=e.clientY/innerHeight;if(!dr)return;const x=dr[0]-e.clientX,y=dr[1]-e.clientY;mv+=Math.abs(x-tx)+Math.abs(y-ty);tx=x;ty=y});
-addEventListener('pointerup',()=>dr=null);
+const endDrag=()=>{dr=null;cv.classList.remove('drag')};addEventListener('pointerup',endDrag);addEventListener('pointercancel',endDrag);addEventListener('blur',endDrag);
 cv.addEventListener('wheel',e=>{e.preventDefault();tz+=e.deltaY*1.1},{passive:false});
 pl.addEventListener('click',e=>{const c=e.target.closest('.card');if(c&&mv<8)navTo('project/'+c.dataset.id)});
 let lt=0;(function loop(now){const f=lt?Math.min(3,(now-lt)/16.667):1;lt=now||0;
  if(document.body.dataset.p=='work'&&view=='g'){
  /* frame-rate independent easing: same feel at 60/120/144 Hz, no catch-up jumps */
  if(!RM2&&!dr)tz+=.5*f;cz+=(tz-cz)*(1-Math.pow(.92,f));cx+=(tx-cx)*(1-Math.pow(.88,f));cy+=(ty-cy)*(1-Math.pow(.88,f));
- if(!RM2)cv.style.perspectiveOrigin=`${50+(gx-.5)*10}% ${50+(gy-.5)*10}%`;
+ if(!RM2){const po=`${(50+(gx-.5)*10).toFixed(2)}% ${(50+(gy-.5)*10).toFixed(2)}%`;if(cv._po!==po){cv.style.perspectiveOrigin=po;cv._po=po}}
+ /* phones: shrink the whole scene so several cards fit on a narrow screen */
+ const SC=cv.clientWidth<=820?.6:1;if(pl._sc!==SC){pl.style.transform=SC<1?`scale(${SC})`:'';pl._sc=SC}
  const W2=cv.clientWidth*.56+60,H2=cv.clientHeight*.56+60;
  for(let i=0;i<items.length;i++){const it=items[i],e=els[i],z=(((it.bz-cz+ZO)%R)+R)%R-ZO,x=wp(it.bx-cx,PX),y=wp(it.by-cy,PY),k=900/(900-z);
   /* fade near depth ends AND near the x/y wrap seam, so a card never pops from one side to the other while visible */
   const o=cl((300-z)/200,0,1)*cl((z+ZO)/400,0,1)*cl((PX/2-Math.abs(x))/520,0,1)*cl((PY/2-Math.abs(y))/420,0,1);
   /* cull by the card's real projected size, not its centre, so nothing vanishes while still on screen */
   const cw=(it.w.w*.7+20)*k,chh=(it.w.h*.7+40)*k;
-  if(o<.01||Math.abs(x*k)-cw>W2||Math.abs(y*k)-chh>H2){if(e.style.visibility!='hidden')e.style.visibility='hidden';continue}
-  e.style.visibility='visible';e.style.opacity=o.toFixed(3);e.style.transform=`translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,${z.toFixed(1)}px) translate(-50%,-50%)`}}
+  if(o<.01||(Math.abs(x*k)-cw)*SC>W2||(Math.abs(y*k)-chh)*SC>H2){if(e.style.visibility!='hidden')e.style.visibility='hidden';continue}
+  if(e.style.visibility!='visible')e.style.visibility='visible';const os=o.toFixed(2),ts=`translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,${z.toFixed(1)}px) translate(-50%,-50%)`;if(e._o!==os){e.style.opacity=os;e._o=os}if(e._t!==ts){e.style.transform=ts;e._t=ts}}}
  requestAnimationFrame(loop)})();
 /* index */
 const L1=[W[9]],L2=[W[9],W[4],W[7],W[5]],L3=[W[11],W[0],W[8],W[6],W[10],W[13]];
@@ -269,7 +278,7 @@ function ix(){const el=$('#ix'),l=pg==1?L1:pg==2?L2:L3;el.className='on c'+pg;
  $$('#pg button').forEach(b=>b.classList.toggle('on',+b.dataset.n==pg))}
 addEventListener('keydown',e=>{const c=e.target.closest&&e.target.closest('.card,.cell');if(c&&(e.key=='Enter'||e.key==' ')){e.preventDefault();navTo('project/'+c.dataset.id)}});
 $('#ix').addEventListener('click',e=>{const c=e.target.closest('.cell');if(c)navTo('project/'+c.dataset.id)});
-function sv(v){view=v;$$('#pill button').forEach(b=>b.classList.toggle('on',b.dataset.v==v));cv.style.display=v=='g'?'block':'none';
+function sv(v){view=v;document.body.dataset.v=v;$$('#pill button').forEach(b=>b.classList.toggle('on',b.dataset.v==v));cv.style.display=v=='g'?'block':'none';
  const e=$('#ix');if(v=='i'){ix()}else{e.className=''}$('#pg').classList.toggle('on',v=='i')}
 $('#pill').onclick=e=>{const b=e.target.closest('button');if(b)sv(b.dataset.v)};
 $('#pg').onclick=e=>{const b=e.target.closest('button');if(b){pg=+b.dataset.n;ix();$('#ix').scrollTo({top:0,behavior:'smooth'})}};
